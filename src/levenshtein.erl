@@ -10,10 +10,10 @@
 -export([d/2]).
 -export([d0/2]).
 -export([d1/2]).
-%% -export([d2/2]).
+-export([d2/2]).
 
-                                                %-compile({inline, [d/2]}).
-d(A, B) -> d1(A, B).
+-compile({inline, [d/2]}).
+d(A, B) -> d2(A, B).
 
 %% original
 
@@ -44,14 +44,17 @@ d1(<<Bin/binary>>, <<Bin2/binary>>) ->
     {Ed, _Cache} = d1(Bin, Bin2, dict:new()),
     Ed.
 
+-define(KEY(A,B), [A|B]).
 d1(<<>>, <<Bin/binary>>, Cache) ->
-    {byte_size(Bin), dict:store({<<>>,Bin}, byte_size(Bin), Cache)};
+    Size = byte_size(Bin),
+    {Size, dict:store(?KEY(<<>>,Bin), Size, Cache)};
 d1(<<Bin/binary>>, <<>>, Cache) ->
-    {byte_size(Bin), dict:store({Bin,<<>>}, byte_size(Bin), Cache)};
+    Size = byte_size(Bin),
+    {Size, dict:store(?KEY(Bin,<<>>), Size, Cache)};
 d1(<<B:8,B1/binary>>, <<B:8,B2/binary>>, Cache) ->
     d1(B1, B2, Cache);
 d1(<<_:8,B1/binary>>=Bin1, <<_:8,B2/binary>>=Bin2, Cache) ->
-    Key = {Bin1, Bin2},
+    Key = ?KEY(Bin1, Bin2),
     case dict:find(Key, Cache) of
         {ok,L} -> {L, Cache};
         error ->
@@ -64,20 +67,44 @@ d1(<<_:8,B1/binary>>=Bin1, <<_:8,B2/binary>>=Bin2, Cache) ->
 
 %% pdict
 
+d2(<<>>, <<Bin/binary>>) ->
+    Size = byte_size(Bin),
+    _ = erlang:put(?KEY(<<>>,Bin), Size),
+    Size;
+d2(<<Bin/binary>>, <<>>) ->
+    Size = byte_size(Bin),
+    _ = erlang:put(?KEY(Bin,<<>>), Size),
+    Size;
+d2(<<B:8,B1/binary>>, <<B:8,B2/binary>>) ->
+    d2(B1, B2);
+d2(<<_:8,B1/binary>>=Bin1, <<_:8,B2/binary>>=Bin2) ->
+    Key = ?KEY(Bin1, Bin2),
+    case erlang:get(Key) of
+        undefined ->
+            L1 = d2(Bin1, B2),
+            L2 = d2(B1, Bin2),
+            L3 = d2(B1, B2),
+            L = 1 + erlang:min(L1, erlang:min(L2, L3)),
+            _ = erlang:put(Key, L),
+            L;
+        L -> L
+    end.
+
 %% Tests
 
 -ifdef(TEST).
+-define(MATCH(Guard, Call), {timeout, 60, ?assertMatch(Guard, Call)}).
+
 d_test() -> ?assertEqual(21, ?MODULE:d(?A, ?B)).
 
-d0_test_() ->
-    ?_assertMatch(N when 250 < N andalso N < 300
-                 ,perftest(1000, fun ?MODULE:d0/2)
-                 ).
+d0_test() ->
+    ?MATCH(N when 250 < N andalso N < 300, perftest(1000, fun ?MODULE:d0/2)).
 
-d1_test_() ->
-    ?_assertMatch(N when 300 < N andalso N < 400
-                 ,perftest(1000, fun ?MODULE:d1/2)
-                 ).
+d1_test() ->
+    ?MATCH(N when 300 < N andalso N < 400, perftest(1000, fun ?MODULE:d1/2)).
+
+d2_test() ->
+    ?MATCH(N when 300 < N andalso N < 400, perftest(1000, fun ?MODULE:d2/2)).
 
 perftest(Iterations, Method) ->
     Start = os:system_time(),
