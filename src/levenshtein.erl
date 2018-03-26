@@ -93,25 +93,33 @@ d2(<<_:8,B1/binary>>=Bin1, <<_:8,B2/binary>>=Bin2) ->
 %% Tests
 
 -ifdef(TEST).
--define(MATCH(Guard, Call), {timeout, 60, ?assertMatch(Guard, Call)}).
+-define(MATCH(Guard, Call)
+       ,{setup, fun setup/0, fun cleanup/1
+        ,{timeout, 999, ?assertMatch(Guard, Call)}}).
+-define(TIMES, 9).
 
 d_test() -> ?assertEqual(21, ?MODULE:d(?A, ?B)).
 
 d0_test() ->
-    ?MATCH(N when 250 < N andalso N < 300, perftest(1000, fun ?MODULE:d0/2)).
+    ?MATCH(N when 110 < N andalso N < 230, perftest(?TIMES, fun ?MODULE:d0/2)).
 
 d1_test() ->
-    ?MATCH(N when 300 < N andalso N < 400, perftest(1000, fun ?MODULE:d1/2)).
+    ?MATCH(N when 110 < N andalso N < 230, perftest(?TIMES, fun ?MODULE:d1/2)).
 
 d2_test() ->
-    ?MATCH(N when 300 < N andalso N < 400, perftest(1000, fun ?MODULE:d2/2)).
+    ?MATCH(N when 500*1000 < N andalso N < 700*1000, perftest(?TIMES, fun ?MODULE:d2/2)).
+
+setup() ->
+    [] = erlang:get().
+cleanup(_) ->
+    [] = erlang:get().
 
 perftest(Iterations, Method) ->
     Start = os:system_time(),
     method_loop(Iterations, Method),
     Diff = os:system_time() - Start,
     R = (Iterations / Diff) * 1000000000,
-    io:format(user, "\n~p: ~p ips\n", [Method,R]),
+    io:format(user, "\n~p: ~p cps\n", [Method,R]),
     R.
 
 method_loop(0, _) -> ok;
