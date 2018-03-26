@@ -1,0 +1,11 @@
+before_script:
+- rebar3 --version
+install:
+- wget https://s3.amazonaws.com/rebar3/rebar3 && chmod +x ./rebar3
+- export PATH=$PATH:$PWD
+language: erlang
+otp_release:
+- 20.2
+script:
+- rebar3 do eunit,cover
+sudo: false
