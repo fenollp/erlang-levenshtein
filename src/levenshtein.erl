@@ -50,11 +50,17 @@ d1(<<>>, <<Bin/binary>>, Cache) ->
     {Size, dict:store(?KEY(<<>>,Bin), Size, Cache)};
 d1(<<Bin/binary>>, <<>>, Cache) ->
     Size = byte_size(Bin),
-    {Size, dict:store(?KEY(Bin,<<>>), Size, Cache)};
+    {Size, dict:store(?KEY(<<>>,Bin), Size, Cache)};
+d1(<<B:8,B1/binary>>, <<B:8,B2/binary>>, Cache)
+  when byte_size(B1) > byte_size(B2) ->
+    d1(B2, B1, Cache);
 d1(<<B:8,B1/binary>>, <<B:8,B2/binary>>, Cache) ->
     d1(B1, B2, Cache);
 d1(<<_:8,B1/binary>>=Bin1, <<_:8,B2/binary>>=Bin2, Cache) ->
-    Key = ?KEY(Bin1, Bin2),
+    Key = case byte_size(B1) > byte_size(B2) of
+              true ->  ?KEY(Bin2, Bin1);
+              false -> ?KEY(Bin1, Bin2)
+          end,
     case dict:find(Key, Cache) of
         {ok,L} -> {L, Cache};
         error ->
@@ -73,12 +79,18 @@ d2(<<>>, <<Bin/binary>>) ->
     Size;
 d2(<<Bin/binary>>, <<>>) ->
     Size = byte_size(Bin),
-    _ = erlang:put(?KEY(Bin,<<>>), Size),
+    _ = erlang:put(?KEY(<<>>,Bin), Size),
     Size;
+d2(<<B:8,B1/binary>>, <<B:8,B2/binary>>)
+  when byte_size(B1) > byte_size(B2) ->
+    d2(B2, B1);
 d2(<<B:8,B1/binary>>, <<B:8,B2/binary>>) ->
     d2(B1, B2);
 d2(<<_:8,B1/binary>>=Bin1, <<_:8,B2/binary>>=Bin2) ->
-    Key = ?KEY(Bin1, Bin2),
+    Key = case byte_size(B1) > byte_size(B2) of
+              true ->  ?KEY(Bin2, Bin1);
+              false -> ?KEY(Bin1, Bin2)
+          end,
     case erlang:get(Key) of
         undefined ->
             L1 = d2(Bin1, B2),
